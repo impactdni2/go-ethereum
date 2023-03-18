@@ -17,10 +17,11 @@
 package rules
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/goccy/go-json"
 
 	"github.com/dop251/goja"
 	"github.com/ethereum/go-ethereum/internal/ethapi"

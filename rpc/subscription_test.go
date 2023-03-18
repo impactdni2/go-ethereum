@@ -17,12 +17,13 @@
 package rpc
 
 import (
-	"encoding/json"
 	"fmt"
 	"net"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/goccy/go-json"
 )
 
 func TestNewID(t *testing.T) {

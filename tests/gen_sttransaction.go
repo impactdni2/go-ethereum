@@ -3,7 +3,7 @@
 package tests
 
 import (
-	"encoding/json"
+	"github.com/goccy/go-json"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"

@@ -17,7 +17,6 @@
 package tests
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -28,6 +27,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/goccy/go-json"
 
 	"github.com/ethereum/go-ethereum/params"
 )
@@ -116,6 +117,7 @@ func (tm *testMatcher) skipLoad(pattern string) {
 }
 
 // fails adds an expected failure for tests matching the pattern.
+//
 //nolint:unused
 func (tm *testMatcher) fails(pattern string, reason string) {
 	if reason == "" {

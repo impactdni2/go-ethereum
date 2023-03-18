@@ -20,9 +20,10 @@
 package geth
 
 import (
-	"encoding/json"
 	"fmt"
 	"path/filepath"
+
+	"github.com/goccy/go-json"
 
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/eth/downloader"

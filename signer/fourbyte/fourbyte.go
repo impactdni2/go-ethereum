@@ -20,9 +20,10 @@ package fourbyte
 import (
 	_ "embed"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"os"
+
+	"github.com/goccy/go-json"
 )
 
 //go:embed 4byte.json

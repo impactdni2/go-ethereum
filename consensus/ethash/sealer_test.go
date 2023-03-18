@@ -17,7 +17,6 @@
 package ethash
 
 import (
-	"encoding/json"
 	"io"
 	"math/big"
 	"net/http"
@@ -25,6 +24,8 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/goccy/go-json"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"

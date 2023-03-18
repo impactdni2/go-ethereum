@@ -17,12 +17,13 @@
 package js
 
 import (
-	"encoding/json"
 	"errors"
 	"math/big"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/goccy/go-json"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/state"

@@ -18,10 +18,11 @@ package storage
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"os"
 	"testing"
+
+	"github.com/goccy/go-json"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"

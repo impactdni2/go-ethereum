@@ -17,11 +17,12 @@
 package main
 
 import (
-	"encoding/json"
 	"os"
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/goccy/go-json"
 
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/log"

@@ -17,11 +17,12 @@
 package js
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
 	"time"
+
+	"github.com/goccy/go-json"
 
 	"github.com/dop251/goja"
 

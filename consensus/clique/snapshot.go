@@ -18,9 +18,10 @@ package clique
 
 import (
 	"bytes"
-	"encoding/json"
 	"sort"
 	"time"
+
+	"github.com/goccy/go-json"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"

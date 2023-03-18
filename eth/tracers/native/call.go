@@ -17,13 +17,14 @@
 package native
 
 import (
-	"encoding/json"
 	"errors"
 	"math/big"
 	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/goccy/go-json"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm"

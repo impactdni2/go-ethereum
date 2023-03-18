@@ -17,11 +17,12 @@
 package abi
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
 	"strings"
+
+	"github.com/goccy/go-json"
 )
 
 // Argument holds the name of the argument and the corresponding type.

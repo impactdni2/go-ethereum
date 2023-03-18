@@ -2,10 +2,11 @@ package librato
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+
+	"github.com/goccy/go-json"
 )
 
 const Operations = "operations"

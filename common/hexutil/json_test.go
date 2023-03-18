@@ -19,10 +19,11 @@ package hexutil
 import (
 	"bytes"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"math/big"
 	"testing"
+
+	"github.com/goccy/go-json"
 )
 
 func checkError(t *testing.T, input string, got, want error) bool {

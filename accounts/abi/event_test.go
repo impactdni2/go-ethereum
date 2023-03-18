@@ -19,11 +19,12 @@ package abi
 import (
 	"bytes"
 	"encoding/hex"
-	"encoding/json"
 	"math/big"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/goccy/go-json"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"

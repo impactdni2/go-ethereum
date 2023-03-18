@@ -17,12 +17,13 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/goccy/go-json"
 
 	"github.com/docker/docker/pkg/reexec"
 	"github.com/ethereum/go-ethereum/cmd/evm/internal/t8ntool"

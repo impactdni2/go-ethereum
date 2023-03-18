@@ -18,8 +18,9 @@
 package tracers
 
 import (
-	"encoding/json"
 	"errors"
+
+	"github.com/goccy/go-json"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm"

@@ -17,7 +17,6 @@
 package tracetest
 
 import (
-	"encoding/json"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -25,6 +24,8 @@ import (
 	"strings"
 	"testing"
 	"unicode"
+
+	"github.com/goccy/go-json"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"

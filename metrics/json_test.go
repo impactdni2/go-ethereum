@@ -2,8 +2,9 @@ package metrics
 
 import (
 	"bytes"
-	"encoding/json"
 	"testing"
+
+	"github.com/goccy/go-json"
 )
 
 func TestRegistryMarshallJSON(t *testing.T) {

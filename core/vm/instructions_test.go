@@ -18,11 +18,12 @@ package vm
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"math/big"
 	"os"
 	"testing"
+
+	"github.com/goccy/go-json"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"

@@ -17,11 +17,12 @@
 package core
 
 import (
-	"encoding/json"
 	"math/big"
 	"runtime"
 	"testing"
 	"time"
+
+	"github.com/goccy/go-json"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"

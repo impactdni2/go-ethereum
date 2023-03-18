@@ -1,9 +1,10 @@
 package metrics
 
 import (
-	"encoding/json"
 	"io"
 	"time"
+
+	"github.com/goccy/go-json"
 )
 
 // MarshalJSON returns a byte slice containing a JSON representation of all

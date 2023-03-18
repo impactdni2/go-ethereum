@@ -17,9 +17,10 @@
 package common
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
+
+	"github.com/goccy/go-json"
 )
 
 // LoadJSON reads the given file and unmarshals its content.

@@ -17,12 +17,13 @@
 package console
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"reflect"
 	"strings"
 	"time"
+
+	"github.com/goccy/go-json"
 
 	"github.com/dop251/goja"
 	"github.com/ethereum/go-ethereum/accounts/scwallet"

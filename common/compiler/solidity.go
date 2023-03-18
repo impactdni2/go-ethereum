@@ -18,8 +18,9 @@
 package compiler
 
 import (
-	"encoding/json"
 	"fmt"
+
+	"github.com/goccy/go-json"
 )
 
 // --combined-output format

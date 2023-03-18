@@ -17,10 +17,11 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/goccy/go-json"
 
 	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/urfave/cli/v2"

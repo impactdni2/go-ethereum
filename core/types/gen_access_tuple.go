@@ -3,7 +3,7 @@
 package types
 
 import (
-	"encoding/json"
+	"github.com/goccy/go-json"
 	"errors"
 
 	"github.com/ethereum/go-ethereum/common"

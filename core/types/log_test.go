@@ -17,10 +17,11 @@
 package types
 
 import (
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"testing"
+
+	"github.com/goccy/go-json"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/ethereum/go-ethereum/common"

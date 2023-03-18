@@ -17,12 +17,13 @@
 package downloader
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
 	"sort"
 	"time"
+
+	"github.com/goccy/go-json"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
