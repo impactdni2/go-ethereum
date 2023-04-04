@@ -23,6 +23,7 @@ import (
 	"reflect"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/holiman/uint256"
 )
 
 var (
@@ -46,7 +47,7 @@ func ReadInteger(typ Type, b []byte) interface{} {
 			return binary.BigEndian.Uint64(b[len(b)-8:])
 		default:
 			// the only case left for unsigned integer is uint256.
-			return new(big.Int).SetBytes(b)
+			return new(uint256.Int).SetBytes(b)
 		}
 	}
 	switch typ.Size {
@@ -63,12 +64,12 @@ func ReadInteger(typ Type, b []byte) interface{} {
 		// big.SetBytes can't tell if a number is negative or positive in itself.
 		// On EVM, if the returned number > max int256, it is negative.
 		// A number is > max int256 if the bit at position 255 is set.
-		ret := new(big.Int).SetBytes(b)
-		if ret.Bit(255) == 1 {
-			ret.Add(MaxUint256, new(big.Int).Neg(ret))
-			ret.Add(ret, common.Big1)
-			ret.Neg(ret)
-		}
+		ret := new(uint256.Int).SetBytes(b)
+		// if ret.Bit(255) == 1 {
+		// 	ret.Add(MaxUint256, new(big.Int).Neg(ret))
+		// 	ret.Add(ret, common.Big1)
+		// 	ret.Neg(ret)
+		// }
 		return ret
 	}
 }
