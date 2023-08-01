@@ -31,7 +31,7 @@ func init() {
 	register("logTracer", newlogTracer)
 }
 
-type LogTracerResult struct {
+type LogCallFrame struct {
 	Logs []SingleLog `json:"logs"`
 }
 
@@ -43,7 +43,8 @@ type SingleLog struct {
 
 type logTracer struct {
 	env       *vm.EVM
-	result    LogTracerResult
+	callstack []*LogCallFrame
+
 	interrupt uint32 // Atomic flag to signal execution interruption
 	reason    error  // Textual reason for the interruption
 }
@@ -51,22 +52,36 @@ type logTracer struct {
 // newlogTracer returns a native go tracer which tracks
 // call frames of a tx, and implements vm.EVMLogger.
 func newlogTracer(ctx *tracers.Context, cfg json.RawMessage) (tracers.Tracer, error) {
-	// First callframe contains tx context info
+	// First LogCallFrame contains tx context info
 	// and is populated on start and end.
 	return &logTracer{
-		result: LogTracerResult{
-			Logs: make([]SingleLog, 0),
+		callstack: []*LogCallFrame{
+			{
+				Logs: make([]SingleLog, 0),
+			},
 		},
 	}, nil
 }
 
 // CaptureStart implements the EVMLogger interface to initialize the tracing operation.
 func (t *logTracer) CaptureStart(env *vm.EVM, from common.Address, to common.Address, create bool, input []byte, gas uint64, value *big.Int) {
+	// Called for each transaction...
+	// log.Printf("captureStart (Transaction Start)")
 	t.env = env
 }
 
 // CaptureEnd is called after the call finishes to finalize the tracing.
 func (t *logTracer) CaptureEnd(output []byte, gasUsed uint64, _ time.Duration, err error) {
+	// Called for each transaction
+	// log.Printf("captureEnd (Transaction End)")
+}
+
+// CaptureEnter is called when EVM enters a new scope (via call, create or selfdestruct).
+func (t *logTracer) CaptureEnter(typ vm.OpCode, from common.Address, to common.Address, input []byte, gas uint64, value *big.Int) {
+	// Push a new stack scope...
+	call := LogCallFrame{}
+	t.callstack = append(t.callstack, &call)
+	// log.Printf("CaptureEnter, new stack pushed")
 }
 
 // CaptureState implements the EVMLogger interface to trace a single step of VM execution.
@@ -90,6 +105,9 @@ func (t *logTracer) CaptureState(pc uint64, op vm.OpCode, gas, cost uint64, scop
 	}
 
 	if numParams > -1 {
+		call := t.callstack[len(t.callstack)-1]
+		// log.Printf("Found a LOG%d opcode, logs before: %d, pushing!", numParams, len(call.Logs))
+
 		// LOGX opcode stack is: offset, size, topics[X]...
 		offset := stackData[stackLen-1]
 		size := stackData[stackLen-2]
@@ -100,11 +118,12 @@ func (t *logTracer) CaptureState(pc uint64, op vm.OpCode, gas, cost uint64, scop
 			topics[i] = common.Hash(stackData[stackLen-3-i].Bytes32())
 		}
 
-		t.result.Logs = append(t.result.Logs, SingleLog{
+		call.Logs = append(call.Logs, SingleLog{
 			Address: scope.Contract.Address(),
 			Data:    data,
 			Topics:  topics,
 		})
+		// log.Printf("len after pushing: %d", len(call.Logs))
 	}
 }
 
@@ -112,13 +131,31 @@ func (t *logTracer) CaptureState(pc uint64, op vm.OpCode, gas, cost uint64, scop
 func (t *logTracer) CaptureFault(pc uint64, op vm.OpCode, gas, cost uint64, _ *vm.ScopeContext, depth int, err error) {
 }
 
-// CaptureEnter is called when EVM enters a new scope (via call, create or selfdestruct).
-func (t *logTracer) CaptureEnter(typ vm.OpCode, from common.Address, to common.Address, input []byte, gas uint64, value *big.Int) {
-}
-
-// CaptureExit is called when EVM exits a scope, even if the scope didn't
-// execute any code.
+// CaptureExit is called when EVM exits a scope, even if the scope didn't execute any code.
 func (t *logTracer) CaptureExit(output []byte, gasUsed uint64, err error) {
+	size := len(t.callstack)
+	// log.Printf("captureExit, stacksize: %d", size)
+	if size <= 1 {
+		// log.Printf("SIZE <= 1, RETURNING")
+		return
+	}
+
+	// pop call
+	call := t.callstack[size-1]
+	// log.Printf("top call is at %d, %s", size-1, call)
+	t.callstack = t.callstack[:size-1]
+	// log.Printf("stack len is now: %d", len(t.callstack))
+	size -= 1
+	// log.Printf("CaptureExit, numLogs %d, err? %t", len(call.Logs), err != nil)
+
+	// If the scope errored, we just throw away the stack
+	if err == nil && len(call.Logs) > 0 {
+		// log.Printf("adding %d logs up one layer size-1: %d, length of callstack: %d", len(call.Logs), size-1, len(t.callstack))
+		// log.Printf("callstack at that spot: %s", t.callstack[size-1])
+		// log.Printf("logs at that: %s", t.callstack[size-1].Logs)
+		// log.Printf("logs to add: %s", call.Logs)
+		t.callstack[size-1].Logs = append(t.callstack[size-1].Logs, call.Logs...)
+	}
 }
 
 func (*logTracer) CaptureTxStart(gasLimit uint64) {}
@@ -128,7 +165,10 @@ func (*logTracer) CaptureTxEnd(restGas uint64) {}
 // GetResult returns the json-encoded nested list of call traces, and any
 // error arising from the encoding or forceful termination (via `Stop`).
 func (t *logTracer) GetResult() (json.RawMessage, error) {
-	res, err := json.Marshal(t.result)
+	// log.Printf("getResult, size: %d", len(t.callstack))
+	// log.Printf("result is: %s", t.callstack[0])
+	// log.Printf("logs there are: %s", t.callstack[0].Logs)
+	res, err := json.Marshal(t.callstack[0].Logs)
 	if err != nil {
 		return nil, err
 	}
