@@ -33,7 +33,7 @@ import (
 //go:generate go run github.com/fjl/gencodec -type account -field-override accountMarshaling -out gen_account_json.go
 
 func init() {
-	register("prestateTracer", newRevertReasonTracer)
+	register("prestateTracer", newPrestateTracer)
 }
 
 type state = map[common.Address]*account
