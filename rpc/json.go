@@ -19,7 +19,6 @@ package rpc
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -27,6 +26,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"encoding/json"
+
+	goccy "github.com/goccy/go-json"
 )
 
 const (
@@ -199,7 +202,7 @@ func NewFuncCodec(conn deadlineCloser, encode encodeFunc, decode decodeFunc) Ser
 // NewCodec creates a codec on the given connection. If conn implements ConnRemoteAddr, log
 // messages will use it to include the remote address of the connection.
 func NewCodec(conn Conn) ServerCodec {
-	enc := json.NewEncoder(conn)
+	enc := goccy.NewEncoder(conn)
 	dec := json.NewDecoder(conn)
 	dec.UseNumber()
 

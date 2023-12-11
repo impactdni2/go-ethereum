@@ -68,6 +68,8 @@ type Node struct {
 	ipc           *ipcServer  // Stores information about the ipc http server
 	inprocHandler *rpc.Server // In-process RPC request handler to process the API requests
 
+	protoIpc *protoIpcServer
+
 	databases map[*closeTrackingDB]struct{} // All open databases
 }
 
@@ -156,6 +158,7 @@ func New(conf *Config) (*Node, error) {
 	node.ws = newHTTPServer(node.log, rpc.DefaultHTTPTimeouts)
 	node.wsAuth = newHTTPServer(node.log, rpc.DefaultHTTPTimeouts)
 	node.ipc = newIPCServer(node.log, conf.IPCEndpoint())
+	node.protoIpc = newProtoIPCServer(node.log, conf.IPCEndpoint()+".proto")
 
 	return node, nil
 }
@@ -404,6 +407,14 @@ func (n *Node) startRPC() error {
 			return err
 		}
 	}
+
+	// Configure IPC.
+	if n.protoIpc.endpoint != "" && n.protoIpc.endpoint != ".proto" {
+		if err := n.protoIpc.start(apis); err != nil {
+			return err
+		}
+	}
+
 	var (
 		servers           []*httpServer
 		openAPIs, allAPIs = n.getAPIs()
@@ -534,6 +545,7 @@ func (n *Node) stopRPC() {
 	n.httpAuth.stop()
 	n.wsAuth.stop()
 	n.ipc.stop()
+	n.protoIpc.stop()
 	n.stopInProc()
 }
 

@@ -645,3 +645,48 @@ func RegisterApis(apis []rpc.API, modules []string, srv *rpc.Server) error {
 	}
 	return nil
 }
+
+type protoIpcServer struct {
+	log      log.Logger
+	endpoint string
+
+	mu       sync.Mutex
+	listener net.Listener
+	srv      *rpc.Server
+}
+
+func newProtoIPCServer(log log.Logger, endpoint string) *protoIpcServer {
+	return &protoIpcServer{log: log, endpoint: endpoint}
+}
+
+// Start starts the httpServer's http.Server
+func (server *protoIpcServer) start(apis []rpc.API) error {
+	server.mu.Lock()
+	defer server.mu.Unlock()
+
+	if server.listener != nil {
+		return nil // already running
+	}
+	listener, srv, err := rpc.StartProtoIPCEndpoint(server.endpoint, apis)
+	if err != nil {
+		server.log.Warn("IPC opening failed", "url", server.endpoint, "error", err)
+		return err
+	}
+	server.log.Info("IPC endpoint opened", "url", server.endpoint)
+	server.listener, server.srv = listener, srv
+	return nil
+}
+
+func (server *protoIpcServer) stop() error {
+	server.mu.Lock()
+	defer server.mu.Unlock()
+
+	if server.listener == nil {
+		return nil // not running
+	}
+	err := server.listener.Close()
+	server.srv.Stop()
+	server.listener, server.srv = nil, nil
+	server.log.Info("IPC endpoint closed", "url", server.endpoint)
+	return err
+}
