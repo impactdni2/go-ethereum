@@ -865,6 +865,15 @@ func (s *BlockChainAPI) GetStorageAt(ctx context.Context, address common.Address
 	return res[:], state.Error()
 }
 
+func (s *BlockChainAPI) GetStorageAtHash(ctx context.Context, address common.Address, key common.Hash, blockNrOrHash rpc.BlockNumberOrHash) (*common.Hash, error) {
+	state, _, err := s.b.StateAndHeaderByNumberOrHash(ctx, blockNrOrHash)
+	if state == nil || err != nil {
+		return nil, err
+	}
+	res := state.GetState(address, key)
+	return &res, state.Error()
+}
+
 // OverrideAccount indicates the overriding fields of account during the execution
 // of a message call.
 // Note, state and stateDiff can't be specified at the same time. If state is

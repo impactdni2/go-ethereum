@@ -18,61 +18,26 @@ package rpc
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"sync"
 	"time"
 
 	"capnproto.org/go/capnp/v3"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
 
 // NewCodec creates a codec on the given connection. If conn implements ConnRemoteAddr, log
 // messages will use it to include the remote address of the connection.
-func NewProtoCodec(conn Conn) ServerCodec {
-	enc := json.NewEncoder(conn)
+func NewProtoCodec(conn Conn) *protobufCodec {
+	// enc := json.NewEncoder(conn)
 	// dec := json.NewDecoder(conn)
 	// dec.UseNumber()
 
-	encode := func(v interface{}, isErrorResponse bool) error {
-		return enc.Encode(v)
-	}
-
 	codec := &protobufCodec{
 		closeCh: make(chan interface{}),
-		encode:  encode,
-		decode: func(v interface{}) error {
-
-			// Read bytes from conn
-			b := make([]byte, 1024)
-			n, err := conn.Read(b)
-			if err != nil {
-				log.Error("Failed Read", "err", err)
-				return errors.New("failed Read")
-			}
-			log.Warn("n", "numbytes", n, "bytes", b)
-
-			msg, err := capnp.UnmarshalPacked(b)
-			if err != nil {
-				log.Error("Failed Unmarshal", "err", err)
-				return errors.New("failed Unmarshal")
-			}
-
-			getStorageReq, err := ReadRootGetStorageAtReq(msg)
-			if err != nil {
-				log.Error("Failed ReadRoot!", "err", err)
-				return errors.New("failed ReadRoot")
-			}
-
-			block := getStorageReq.Block()
-			addr, _ := getStorageReq.Address()
-			slot, _ := getStorageReq.Slot()
-			log.Warn("omg workd?", "block", block, "address", addr, "slot", slot)
-
-			return errors.New("unimplemented, todo()")
-			// return dec.Decode(v)
-		},
-		conn: conn,
+		conn:    conn,
+		buffer:  make([]byte, 1024),
 	}
 	if ra, ok := conn.(ConnRemoteAddr); ok {
 		codec.remote = ra.RemoteAddr()
@@ -86,10 +51,41 @@ type protobufCodec struct {
 	remote  string
 	closer  sync.Once        // close closed channel once
 	closeCh chan interface{} // closed on Close
-	decode  decodeFunc       // decoder to allow multiple transports
 	encMu   sync.Mutex       // guards the encoder
 	encode  encodeFunc       // encoder to allow multiple transports
-	conn    deadlineCloser
+	conn    Conn
+	buffer  []byte
+}
+
+func (c *protobufCodec) decode() (*GetStorageAtReq, error) {
+	// Read bytes from conn
+	_, err := c.conn.Read(c.buffer)
+	if err != nil {
+		log.Error("Failed Read", "err", err)
+		return nil, errors.New("failed Read")
+	}
+	// log.Warn("n", "numbytes", n)
+
+	msg, err := capnp.Unmarshal(c.buffer)
+	if err != nil {
+		log.Error("Failed Unmarshal", "err", err)
+		return nil, errors.New("failed Unmarshal")
+	}
+
+	getStorageReq, err := ReadRootGetStorageAtReq(msg)
+	if err != nil {
+		log.Error("Failed ReadRoot!", "err", err)
+		return nil, errors.New("failed ReadRoot")
+	}
+
+	// block := getStorageReq.Block()
+	// addr, _ := getStorageReq.Address()
+	// slot, _ := getStorageReq.Slot()
+	// log.Warn("omg workd?", "block", block, "address", addr, "slot", slot)
+
+	// return errors.New("unimplemented, todo()")
+	// return dec.Decode(v)
+	return &getStorageReq, nil
 }
 
 func (c *protobufCodec) close() {
@@ -114,22 +110,41 @@ func (c *protobufCodec) remoteAddr() string {
 	return c.remote
 }
 
-func (c *protobufCodec) readBatch() (messages []*jsonrpcMessage, batch bool, err error) {
-	// Decode the next JSON object in the input stream.
-	// This verifies basic syntax, etc.
-	var rawmsg json.RawMessage
-	if err := c.decode(&rawmsg); err != nil {
-		return nil, false, err
+func (c *protobufCodec) writeStorageValue(ctx context.Context, value *common.Hash) error {
+	c.encMu.Lock()
+	defer c.encMu.Unlock()
+
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		deadline = time.Now().Add(defaultWriteTimeout)
 	}
-	messages, batch = parseMessage(rawmsg)
-	for i, msg := range messages {
-		if msg == nil {
-			// Message is JSON 'null'. Replace with zero value so it
-			// will be treated like any other invalid message.
-			messages[i] = new(jsonrpcMessage)
-		}
+	c.conn.SetWriteDeadline(deadline)
+
+	arena := capnp.SingleSegment(nil)
+	msg, seg, err := capnp.NewMessage(arena)
+	if err != nil {
+		log.Error("Failed NewMessage", "err", err)
+		return errors.New("failed NewMessage")
 	}
-	return messages, batch, nil
+
+	response, err := NewRootGetStorageAtReq(seg)
+	if err != nil {
+		log.Error("Failed NewRootGetStorageAtReq", "err", err)
+		return errors.New("failed NewRootGetStorageAtReq")
+	}
+
+	response.SetSlot(value[:])
+	bytes, err := msg.Marshal()
+	if err != nil {
+		log.Error("Failed Marshal", "err", err)
+		return errors.New("failed Marshal")
+	}
+
+	// log.Warn("writing to conn", "bytes", bytes)
+	_, err = c.conn.Write(bytes)
+	// log.Warn("wrote to conn", "numbytes", n)
+
+	return err
 }
 
 func (c *protobufCodec) writeJSON(ctx context.Context, v interface{}, isErrorResponse bool) error {
