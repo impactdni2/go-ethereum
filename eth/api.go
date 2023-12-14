@@ -19,6 +19,7 @@ package eth
 import (
 	"compress/gzip"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -617,4 +618,276 @@ func (api *DebugAPI) SetTrieFlushInterval(interval string) error {
 	}
 	api.eth.blockchain.SetTrieFlushInterval(t)
 	return nil
+}
+
+func (api *DebugAPI) DumpAccountsList(blockNr rpc.BlockNumber, skipCode bool) (state.Dump, error) {
+	opts := &state.DumpConfig{
+		OnlyWithAddresses: true,
+		SkipCode:          skipCode,
+		SkipStorage:       true,
+	}
+
+	// arbitrum: in case of ArbEthereum, miner in not available here
+	// use current block instead of pending
+	if blockNr == rpc.PendingBlockNumber && api.eth.miner == nil {
+		blockNr = rpc.LatestBlockNumber
+	}
+	if blockNr == rpc.PendingBlockNumber {
+		// If we're dumping the pending state, we need to request
+		// both the pending block as well as the pending state from
+		// the miner and operate on those
+		_, stateDb := api.eth.miner.Pending()
+		return stateDb.RawDump(opts), nil
+	}
+
+	var header *types.Header
+	if blockNr == rpc.LatestBlockNumber {
+		header = api.eth.blockchain.CurrentBlock()
+	} else if blockNr == rpc.FinalizedBlockNumber {
+		header = api.eth.blockchain.CurrentFinalBlock()
+	} else if blockNr == rpc.SafeBlockNumber {
+		header = api.eth.blockchain.CurrentSafeBlock()
+	} else {
+		block := api.eth.blockchain.GetBlockByNumber(uint64(blockNr))
+		if block == nil {
+			return state.Dump{}, fmt.Errorf("block #%d not found", blockNr)
+		}
+		header = block.Header()
+	}
+	if header == nil {
+		return state.Dump{}, fmt.Errorf("block #%d not found", blockNr)
+	}
+	stateDb, err := api.eth.BlockChain().StateAt(header.Root)
+	if err != nil {
+		return state.Dump{}, err
+	}
+	return stateDb.RawDump(opts), nil
+}
+
+func (api *DebugAPI) getBlockHeader(blockNr rpc.BlockNumber) *types.Header {
+	// arbitrum: in case of ArbEthereum, miner in not available here
+	// use current block instead of pending
+	if blockNr == rpc.PendingBlockNumber && api.eth.miner == nil {
+		blockNr = rpc.LatestBlockNumber
+	}
+	// if blockNr == rpc.PendingBlockNumber {
+	// 	// If we're dumping the pending state, we need to request
+	// 	// both the pending block as well as the pending state from
+	// 	// the miner and operate on those
+	// 	_, stateDb := api.eth.miner.Pending()
+	// 	return stateDb.DumpAccount(account), nil
+	// }
+
+	var header *types.Header
+	if blockNr == rpc.LatestBlockNumber {
+		header = api.eth.blockchain.CurrentBlock()
+	} else if blockNr == rpc.FinalizedBlockNumber {
+		header = api.eth.blockchain.CurrentFinalBlock()
+	} else if blockNr == rpc.SafeBlockNumber {
+		header = api.eth.blockchain.CurrentSafeBlock()
+	} else {
+		block := api.eth.blockchain.GetBlockByNumber(uint64(blockNr))
+		if block != nil {
+			header = block.Header()
+		}
+	}
+	return header
+}
+
+func (api *DebugAPI) DumpAccount(blockNr rpc.BlockNumber, account common.Address) (state.DumpAccount, error) {
+	header := api.getBlockHeader(blockNr)
+	if header == nil {
+		return state.DumpAccount{}, fmt.Errorf("block #%d not found", blockNr)
+	}
+	stateDb, err := api.eth.BlockChain().StateAt(header.Root)
+	if err != nil {
+		return state.DumpAccount{}, err
+	}
+	return stateDb.DumpAccount(account), nil
+}
+
+// Copy of StorageRangeAt, but without txIndex/context.
+func (api *DebugAPI) StorageRange(blockNr rpc.BlockNumber, contractAddress common.Address, keyStart hexutil.Bytes, maxResult int) (StorageRangeResult, error) {
+	header := api.getBlockHeader(blockNr)
+	if header == nil {
+		return StorageRangeResult{}, fmt.Errorf("block #%d not found", blockNr)
+	}
+
+	stateDb, err := api.eth.BlockChain().StateAt(header.Root)
+	if err != nil {
+		return StorageRangeResult{}, err
+	}
+
+	st, err := stateDb.StorageTrie(contractAddress)
+	if err != nil {
+		return StorageRangeResult{}, err
+	}
+	if st == nil {
+		return StorageRangeResult{}, fmt.Errorf("account %x doesn't exist", contractAddress)
+	}
+	return storageRangeAt(st, keyStart, maxResult)
+}
+
+// DumpBlock retrieves the entire state of the database at a given block.
+func (api *DebugAPI) DumpFullBlock(blockNr rpc.BlockNumber) error {
+	opts := &state.DumpConfig{
+		OnlyWithAddresses: true,
+	}
+	// arbitrum: in case of ArbEthereum, miner in not available here
+	// use current block instead of pending
+	if blockNr == rpc.PendingBlockNumber && api.eth.miner == nil {
+		blockNr = rpc.LatestBlockNumber
+	}
+	var header *types.Header
+	if blockNr == rpc.LatestBlockNumber {
+		header = api.eth.blockchain.CurrentBlock()
+	} else if blockNr == rpc.FinalizedBlockNumber {
+		header = api.eth.blockchain.CurrentFinalBlock()
+	} else if blockNr == rpc.SafeBlockNumber {
+		header = api.eth.blockchain.CurrentSafeBlock()
+	} else {
+		block := api.eth.blockchain.GetBlockByNumber(uint64(blockNr))
+		if block == nil {
+			return fmt.Errorf("block #%d not found", blockNr)
+		}
+		header = block.Header()
+	}
+	if header == nil {
+		return fmt.Errorf("block #%d not found", blockNr)
+	}
+	stateDb, err := api.eth.BlockChain().StateAt(header.Root)
+	if err != nil {
+		return err
+	}
+
+	folder := "dump-" + blockNr.String()
+	os.MkdirAll(folder, os.ModePerm)
+	dump := &FileDumper{folder: folder}
+	stateDb.DumpToCollector(dump, opts)
+	return nil
+}
+
+// Dump represents the full dump in a collected format, as one large map.
+type FileDumper struct {
+	folder string
+}
+
+func (d *FileDumper) OnRoot(root common.Hash) {}
+
+func (d *FileDumper) OnAccount(addr *common.Address, account state.DumpAccount) {
+	if addr != nil {
+		file, _ := json.MarshalIndent(account, "", " ")
+		err := os.WriteFile(d.folder+"/"+addr.String()+".json", file, 0644)
+		if err != nil {
+			log.Warn("failed to write file: ", "err", err)
+		}
+	}
+}
+
+type partialDumpAccount struct {
+	Balance  string           `json:"balance"`
+	Nonce    uint64           `json:"nonce"`
+	CodeHash hexutil.Bytes    `json:"codeHash"`
+	Storage  simpleStorageMap `json:"storage,omitempty"`
+}
+
+type simpleStorageMap map[common.Hash]common.Hash
+
+// Gets the state change for block
+func (api *DebugAPI) GetStateChanges(blockNum uint64) (*map[common.Address]partialDumpAccount, error) {
+	var startBlock, endBlock *types.Block
+
+	startBlock = api.eth.blockchain.GetBlockByNumber(blockNum)
+	if startBlock == nil {
+		return nil, fmt.Errorf("start block %x not found", blockNum)
+	}
+
+	endBlock = startBlock
+	startBlock = api.eth.blockchain.GetBlockByHash(startBlock.ParentHash())
+	if startBlock == nil {
+		return nil, fmt.Errorf("block %x has no parent", endBlock.Number())
+	}
+
+	accounts, err := api.getModifiedAccounts(startBlock, endBlock)
+	if err != nil {
+		return nil, err
+	}
+
+	accountChanges := make(map[common.Address]partialDumpAccount)
+
+	for _, account := range accounts {
+		accountChanges[account], err = api.getAccountModifications(startBlock, endBlock, account)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &accountChanges, nil
+}
+
+func (api *DebugAPI) getAccountModifications(startBlock, endBlock *types.Block, address common.Address) (partialDumpAccount, error) {
+	if startBlock.Number().Uint64() >= endBlock.Number().Uint64() {
+		return partialDumpAccount{}, fmt.Errorf("start block height (%d) must be less than end block height (%d)", startBlock.Number().Uint64(), endBlock.Number().Uint64())
+	}
+
+	oldStateDb, err := api.eth.BlockChain().StateAt(startBlock.Root())
+	if err != nil {
+		return partialDumpAccount{}, err
+	}
+
+	oldStorage, err := oldStateDb.StorageTrie(address)
+	if err != nil {
+		return partialDumpAccount{}, err
+	}
+
+	newStateDb, err := api.eth.BlockChain().StateAt(endBlock.Root())
+	if err != nil {
+		return partialDumpAccount{}, err
+	}
+
+	newStorage, err := newStateDb.StorageTrie(address)
+	if err != nil {
+		return partialDumpAccount{}, err
+	}
+
+	// First grab the new account basics...
+	newAccountState := newStateDb.GetOrNewStateObject(address)
+	changes := partialDumpAccount{
+		Balance:  newAccountState.Balance().String(),
+		Nonce:    newAccountState.Nonce(),
+		CodeHash: newAccountState.CodeHash(),
+		Storage:  simpleStorageMap{},
+	}
+
+	var oldStorageIter trie.NodeIterator
+	if oldStorage == nil {
+		log.Warn("old storage is nil for address", "address", address)
+		tmpTrie := trie.NewEmpty(oldStateDb.Database().TrieDB())
+		oldStorageIter = tmpTrie.NodeIterator([]byte{})
+	} else {
+		oldStorageIter = oldStorage.NodeIterator([]byte{})
+	}
+
+	diff, _ := trie.NewDifferenceIterator(oldStorageIter, newStorage.NodeIterator([]byte{}))
+	iter := trie.NewIterator(diff)
+
+	for iter.Next() {
+		_, content, _, err := rlp.Split(iter.Value)
+		if err != nil {
+			log.Warn("failed to split value: ", "err", err)
+			continue
+		}
+
+		if preimage := newStorage.GetKey(iter.Key); preimage != nil {
+			preimage := common.BytesToHash(preimage)
+			changes.Storage[preimage] = common.BytesToHash(content)
+		}
+
+		// key := newStorage.GetKey(iter.Key)
+		// if key == nil {
+		// 	return partialDumpAccount{}, fmt.Errorf("no preimage found for hash %x", iter.Key)
+		// }
+		// dirty = append(dirty, common.BytesToAddress(key))
+	}
+	return changes, nil
 }
