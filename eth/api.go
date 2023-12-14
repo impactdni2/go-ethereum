@@ -19,7 +19,6 @@ package eth
 import (
 	"compress/gzip"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -714,62 +713,6 @@ func (api *DebugAPI) StorageRange(blockNr rpc.BlockNumber, contractAddress commo
 		return StorageRangeResult{}, fmt.Errorf("account %x doesn't exist", contractAddress)
 	}
 	return storageRangeAt(st, keyStart, maxResult)
-}
-
-// DumpBlock retrieves the entire state of the database at a given block.
-func (api *DebugAPI) DumpFullBlock(blockNr rpc.BlockNumber) error {
-	opts := &state.DumpConfig{
-		OnlyWithAddresses: true,
-	}
-	// arbitrum: in case of ArbEthereum, miner in not available here
-	// use current block instead of pending
-	if blockNr == rpc.PendingBlockNumber && api.eth.miner == nil {
-		blockNr = rpc.LatestBlockNumber
-	}
-	var header *types.Header
-	if blockNr == rpc.LatestBlockNumber {
-		header = api.eth.blockchain.CurrentBlock()
-	} else if blockNr == rpc.FinalizedBlockNumber {
-		header = api.eth.blockchain.CurrentFinalBlock()
-	} else if blockNr == rpc.SafeBlockNumber {
-		header = api.eth.blockchain.CurrentSafeBlock()
-	} else {
-		block := api.eth.blockchain.GetBlockByNumber(uint64(blockNr))
-		if block == nil {
-			return fmt.Errorf("block #%d not found", blockNr)
-		}
-		header = block.Header()
-	}
-	if header == nil {
-		return fmt.Errorf("block #%d not found", blockNr)
-	}
-	stateDb, err := api.eth.BlockChain().StateAt(header.Root)
-	if err != nil {
-		return err
-	}
-
-	folder := "dump-" + blockNr.String()
-	os.MkdirAll(folder, os.ModePerm)
-	dump := &FileDumper{folder: folder}
-	stateDb.DumpToCollector(dump, opts)
-	return nil
-}
-
-// Dump represents the full dump in a collected format, as one large map.
-type FileDumper struct {
-	folder string
-}
-
-func (d *FileDumper) OnRoot(root common.Hash) {}
-
-func (d *FileDumper) OnAccount(addr *common.Address, account state.DumpAccount) {
-	if addr != nil {
-		file, _ := json.MarshalIndent(account, "", " ")
-		err := os.WriteFile(d.folder+"/"+addr.String()+".json", file, 0644)
-		if err != nil {
-			log.Warn("failed to write file: ", "err", err)
-		}
-	}
 }
 
 type partialDumpAccount struct {
