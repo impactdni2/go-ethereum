@@ -694,18 +694,6 @@ func (api *DebugAPI) getBlockHeader(blockNr rpc.BlockNumber) *types.Header {
 	return header
 }
 
-func (api *DebugAPI) DumpAccount(blockNr rpc.BlockNumber, account common.Address) (state.DumpAccount, error) {
-	header := api.getBlockHeader(blockNr)
-	if header == nil {
-		return state.DumpAccount{}, fmt.Errorf("block #%d not found", blockNr)
-	}
-	stateDb, err := api.eth.BlockChain().StateAt(header.Root)
-	if err != nil {
-		return state.DumpAccount{}, err
-	}
-	return stateDb.DumpAccount(account), nil
-}
-
 // Copy of StorageRangeAt, but without txIndex/context.
 func (api *DebugAPI) StorageRange(blockNr rpc.BlockNumber, contractAddress common.Address, keyStart hexutil.Bytes, maxResult int) (StorageRangeResult, error) {
 	header := api.getBlockHeader(blockNr)

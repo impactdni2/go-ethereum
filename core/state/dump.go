@@ -210,50 +210,6 @@ func (s *StateDB) DumpToCollector(c DumpCollector, conf *DumpConfig) (nextKey []
 	return nextKey
 }
 
-// DumpToCollector iterates the state according to the given options and inserts
-// the items into a collector for aggregation or serialization.
-func (s *StateDB) DumpAccount(address common.Address) DumpAccount {
-	log.Info("Trie dumping started", "root", s.trie.Hash())
-
-	data, _ := s.trie.GetAccount(address)
-	obj := newObject(s, address, *data)
-
-	account := DumpAccount{
-		Balance:  data.Balance.String(),
-		Nonce:    data.Nonce,
-		Root:     data.Root[:],
-		Code:     obj.Code(s.db),
-		CodeHash: data.CodeHash,
-		Storage:  make(map[common.Hash]string),
-	}
-
-	account.Code = obj.Code(s.db)
-	account.Storage = make(map[common.Hash]string)
-	tr, err := obj.getTrie(s.db)
-	if err != nil {
-		log.Error("Failed to load storage trie", "err", err)
-		return account
-	}
-
-	counter := 0
-
-	storageIt := trie.NewIterator(tr.NodeIterator(nil))
-	for storageIt.Next() {
-		_, content, _, err := rlp.Split(storageIt.Value)
-		if err != nil {
-			log.Error("Failed to decode the value returned by iterator", "error", err)
-			continue
-		}
-		account.Storage[common.BytesToHash(s.trie.GetKey(storageIt.Key))] = common.Bytes2Hex(content)
-		counter++
-		if counter%1000 == 0 {
-			log.Info("Trie dumping in progress", "addr", address, "accounts", counter)
-		}
-	}
-
-	return account
-}
-
 // RawDump returns the entire state an a single large object
 func (s *StateDB) RawDump(opts *DumpConfig) Dump {
 	dump := &Dump{
