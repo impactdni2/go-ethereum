@@ -625,13 +625,6 @@ func (api *DebugAPI) getBlockHeader(blockNr rpc.BlockNumber) *types.Header {
 	if blockNr == rpc.PendingBlockNumber && api.eth.miner == nil {
 		blockNr = rpc.LatestBlockNumber
 	}
-	// if blockNr == rpc.PendingBlockNumber {
-	// 	// If we're dumping the pending state, we need to request
-	// 	// both the pending block as well as the pending state from
-	// 	// the miner and operate on those
-	// 	_, stateDb := api.eth.miner.Pending()
-	// 	return stateDb.DumpAccount(account), nil
-	// }
 
 	var header *types.Header
 	if blockNr == rpc.LatestBlockNumber {
@@ -710,6 +703,45 @@ func (api *DebugAPI) GetStateChanges(blockNum uint64) (*map[common.Address]parti
 	}
 
 	return &accountChanges, nil
+}
+
+// Gets a partial account (pls dont hurt me) at a certain block
+func (api *DebugAPI) GetFullAccount(blockNum uint64, address common.Address) (*partialDumpAccount, error) {
+	block := api.eth.blockchain.GetBlockByNumber(blockNum)
+	if block == nil {
+		return nil, fmt.Errorf("start block %x not found", blockNum)
+	}
+
+	stateDb, err := api.eth.BlockChain().StateAt(block.Root())
+	if err != nil {
+		return nil, err
+	}
+
+	accountState := stateDb.GetOrNewStateObject(address)
+	account := partialDumpAccount{
+		Balance:  accountState.Balance().String(),
+		Nonce:    accountState.Nonce(),
+		CodeHash: accountState.CodeHash(),
+		Storage:  simpleStorageMap{},
+	}
+
+	tr, err := stateDb.StorageTrie(address)
+	if err != nil {
+		log.Error("Failed to load storage trie", "err", err)
+		return nil, err
+	}
+
+	storageIt := trie.NewIterator(tr.NodeIterator(nil))
+	for storageIt.Next() {
+		_, content, _, err := rlp.Split(storageIt.Value)
+		if err != nil {
+			log.Error("Failed to decode the value returned by iterator", "error", err)
+			continue
+		}
+		account.Storage[common.BytesToHash(tr.GetKey(storageIt.Key))] = common.BytesToHash(content)
+	}
+
+	return &account, nil
 }
 
 func (api *DebugAPI) getAccountModifications(startBlock, endBlock *types.Block, address common.Address) (partialDumpAccount, error) {
