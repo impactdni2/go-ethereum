@@ -664,7 +664,7 @@ func (api *DebugAPI) StorageRange(blockNr rpc.BlockNumber, contractAddress commo
 	return storageRangeAt(st, keyStart, maxResult)
 }
 
-type partialDumpAccount struct {
+type fullDumpAccount struct {
 	Balance  string           `json:"balance"`
 	Nonce    uint64           `json:"nonce"`
 	CodeHash hexutil.Bytes    `json:"codeHash"`
@@ -674,7 +674,7 @@ type partialDumpAccount struct {
 type simpleStorageMap map[common.Hash]common.Hash
 
 // Gets the state change for block
-func (api *DebugAPI) GetStateChanges(blockNum uint64) (*map[common.Address]partialDumpAccount, error) {
+func (api *DebugAPI) GetStateChanges(blockNum uint64) (*map[common.Address]fullDumpAccount, error) {
 	var startBlock, endBlock *types.Block
 
 	startBlock = api.eth.blockchain.GetBlockByNumber(blockNum)
@@ -693,7 +693,7 @@ func (api *DebugAPI) GetStateChanges(blockNum uint64) (*map[common.Address]parti
 		return nil, err
 	}
 
-	accountChanges := make(map[common.Address]partialDumpAccount)
+	accountChanges := make(map[common.Address]fullDumpAccount)
 
 	for _, account := range accounts {
 		accountChanges[account], err = api.getAccountModifications(startBlock, endBlock, account)
@@ -706,7 +706,7 @@ func (api *DebugAPI) GetStateChanges(blockNum uint64) (*map[common.Address]parti
 }
 
 // Gets a partial account (pls dont hurt me) at a certain block
-func (api *DebugAPI) GetFullAccount(blockNum uint64, address common.Address) (*partialDumpAccount, error) {
+func (api *DebugAPI) GetFullAccount(blockNum uint64, address common.Address) (*fullDumpAccount, error) {
 	block := api.eth.blockchain.GetBlockByNumber(blockNum)
 	if block == nil {
 		return nil, fmt.Errorf("start block %x not found", blockNum)
@@ -718,7 +718,7 @@ func (api *DebugAPI) GetFullAccount(blockNum uint64, address common.Address) (*p
 	}
 
 	accountState := stateDb.GetOrNewStateObject(address)
-	account := partialDumpAccount{
+	account := fullDumpAccount{
 		Balance:  accountState.Balance().String(),
 		Nonce:    accountState.Nonce(),
 		CodeHash: accountState.CodeHash(),
@@ -744,34 +744,34 @@ func (api *DebugAPI) GetFullAccount(blockNum uint64, address common.Address) (*p
 	return &account, nil
 }
 
-func (api *DebugAPI) getAccountModifications(startBlock, endBlock *types.Block, address common.Address) (partialDumpAccount, error) {
+func (api *DebugAPI) getAccountModifications(startBlock, endBlock *types.Block, address common.Address) (fullDumpAccount, error) {
 	if startBlock.Number().Uint64() >= endBlock.Number().Uint64() {
-		return partialDumpAccount{}, fmt.Errorf("start block height (%d) must be less than end block height (%d)", startBlock.Number().Uint64(), endBlock.Number().Uint64())
+		return fullDumpAccount{}, fmt.Errorf("start block height (%d) must be less than end block height (%d)", startBlock.Number().Uint64(), endBlock.Number().Uint64())
 	}
 
 	oldStateDb, err := api.eth.BlockChain().StateAt(startBlock.Root())
 	if err != nil {
-		return partialDumpAccount{}, err
+		return fullDumpAccount{}, err
 	}
 
 	oldStorage, err := oldStateDb.StorageTrie(address)
 	if err != nil {
-		return partialDumpAccount{}, err
+		return fullDumpAccount{}, err
 	}
 
 	newStateDb, err := api.eth.BlockChain().StateAt(endBlock.Root())
 	if err != nil {
-		return partialDumpAccount{}, err
+		return fullDumpAccount{}, err
 	}
 
 	newStorage, err := newStateDb.StorageTrie(address)
 	if err != nil {
-		return partialDumpAccount{}, err
+		return fullDumpAccount{}, err
 	}
 
 	// First grab the new account basics...
 	newAccountState := newStateDb.GetOrNewStateObject(address)
-	changes := partialDumpAccount{
+	changes := fullDumpAccount{
 		Balance:  newAccountState.Balance().String(),
 		Nonce:    newAccountState.Nonce(),
 		CodeHash: newAccountState.CodeHash(),
